@@ -101,6 +101,19 @@ class AuditlogRule(models.Model):
         string=u"State", required=True, default='draft')
     action_id = fields.Many2one(
         'ir.actions.act_window', string="Action")
+    log_level = fields.Selection(
+        [('full', u"Full"),
+         ('limited', u"Limited")],
+        string=u"Level",
+        help=u"Define the level of information to log for creation and "
+             u"modification actions:\n"
+             u"- Full: log all the fields changed on the record "
+             u"before/after the action such as computed fields which are "
+             u"triggered automatically (the log will contain a lot of "
+             u"information but is slower to generate),\n"
+             u"- Limited: log only the fields related to the "
+             u"creation/modification request (less information, but this "
+             u"method is faster than the full one).")
 
     _sql_constraints = [
         ('model_uniq', 'unique(model_id)',
