@@ -101,6 +101,9 @@ class AuditlogRule(models.Model):
         string=u"State", required=True, default='draft')
     action_id = fields.Many2one(
         'ir.actions.act_window', string="Action")
+    action_rule = fields.Selection(
+        [('fast','Fast Log (VALS)'),('full','Full Log')],   # ,('wcomp','Without Computed Fields')
+        string=u"Action Rule", required=True, default='fast')
 
     _sql_constraints = [
         ('model_uniq', 'unique(model_id)',
@@ -137,28 +140,40 @@ class AuditlogRule(models.Model):
             check_attr = 'auditlog_ruled_create'
             if getattr(rule, 'log_create') \
                     and not hasattr(model_model, check_attr):
-                model_model._patch_method('create', self._make_create())
+                if rule.action_rule == 'fast':
+                    model_model._patch_method('create', self._make_create_fast())
+                else:
+                    model_model._patch_method('create', self._make_create_full())
                 setattr(model_model, check_attr, True)
                 updated = True
             #   -> read
             check_attr = 'auditlog_ruled_read'
             if getattr(rule, 'log_read') \
                     and not hasattr(model_model, check_attr):
-                model_model._patch_method('read', self._make_read())
+                if rule.action_rule == 'fast':
+                    continue
+                else:
+                    model_model._patch_method('read', self._make_read_full())
                 setattr(model_model, check_attr, True)
                 updated = True
             #   -> write
             check_attr = 'auditlog_ruled_write'
             if getattr(rule, 'log_write') \
                     and not hasattr(model_model, check_attr):
-                model_model._patch_method('write', self._make_write())
+                if rule.action_rule == 'fast':
+                    model_model._patch_method('write', self._make_write_fast())
+                else:
+                    model_model._patch_method('write', self._make_write_full())
                 setattr(model_model, check_attr, True)
                 updated = True
             #   -> unlink
             check_attr = 'auditlog_ruled_unlink'
             if getattr(rule, 'log_unlink') \
                     and not hasattr(model_model, check_attr):
-                model_model._patch_method('unlink', self._make_unlink())
+                if rule.action_rule == 'fast':
+                    model_model._patch_method('unlink', self._make_unlink_fast())
+                else:
+                    model_model._patch_method('unlink', self._make_unlink_full())
                 setattr(model_model, check_attr, True)
                 updated = True
         return updated
@@ -205,7 +220,7 @@ class AuditlogRule(models.Model):
         self.unsubscribe()
         return super(AuditlogRule, self).unlink()
 
-    def _make_create(self):
+    def _make_create_full(self):
         """Instanciate a create method that log its calls."""
         @api.model
         @api.returns('self', lambda value: value.id)
@@ -222,7 +237,24 @@ class AuditlogRule(models.Model):
             return new_record
         return create
 
-    def _make_read(self):
+    def _make_create_fast(self):
+        """Instanciate a create method that log its calls."""
+        @api.model
+        @api.returns('self', lambda value: value.id)
+        def create(self, vals, **kwargs):
+            self = self.with_context(auditlog_disabled=True)
+            rule_model = self.env['auditlog.rule']
+            new_record = create.origin(self, vals, **kwargs)
+            new_values = dict(
+                (d['id'], d) for d in new_record.sudo()
+                .with_context(prefetch_fields=False).read(list(vals)))
+            rule_model.sudo().create_logs(
+                self.env.uid, self._name, new_record.ids,
+                'create', None, new_values)
+            return new_record
+        return create
+
+    def _make_read_full(self):
         """Instanciate a read method that log its calls."""
 
         def read(self, *args, **kwargs):
@@ -265,7 +297,7 @@ class AuditlogRule(models.Model):
             return result
         return read
 
-    def _make_write(self):
+    def _make_write_full(self):
         """Instanciate a write method that log its calls."""
         @api.multi
         def write(self, vals, **kwargs):
@@ -284,7 +316,23 @@ class AuditlogRule(models.Model):
             return result
         return write
 
-    def _make_unlink(self):
+    def _make_write_fast(self):
+        """Instanciate a write method that log its calls."""
+        @api.multi
+        def write(self, vals, **kwargs):
+            self = self.with_context(auditlog_disabled=True)
+            rule_model = self.env['auditlog.rule']
+            result = write.origin(self, vals, **kwargs)
+            new_values = dict(
+                (d['id'], d) for d in self.sudo()
+                .with_context(prefetch_fields=False).read(list(vals)))
+            rule_model.sudo().create_logs(
+                self.env.uid, self._name, self.ids,
+                'write', None, new_values)
+            return result
+        return write
+
+    def _make_unlink_full(self):
         """Instanciate an unlink method that log its calls."""
         @api.multi
         def unlink(self, **kwargs):
@@ -295,6 +343,17 @@ class AuditlogRule(models.Model):
                 .with_context(prefetch_fields=False).read(list(self._fields)))
             rule_model.sudo().create_logs(
                 self.env.uid, self._name, self.ids, 'unlink', old_values)
+            return unlink.origin(self, **kwargs)
+        return unlink
+
+    def _make_unlink_fast(self):
+        """Instanciate an unlink method that log its calls."""
+        @api.multi
+        def unlink(self, **kwargs):
+            self = self.with_context(auditlog_disabled=True)
+            rule_model = self.env['auditlog.rule']
+            rule_model.sudo().create_logs(
+                self.env.uid, self._name, self.ids, 'unlink', None)
             return unlink.origin(self, **kwargs)
         return unlink
 
@@ -335,8 +394,12 @@ class AuditlogRule(models.Model):
                 self._create_log_line_on_read(
                     log, old_values.get(res_id, EMPTY_DICT).keys(), old_values)
             elif method is 'write':
-                self._create_log_line_on_write(
-                    log, diff.changed(), old_values, new_values)
+                if not old_values:
+                    self._create_log_line_on_write(
+                        log, diff.added(), old_values, new_values)
+                else:
+                    self._create_log_line_on_write(
+                        log, diff.changed(), old_values, new_values)
 
     def _get_field(self, model, field_name):
         cache = self.pool._auditlog_field_cache
@@ -410,32 +473,42 @@ class AuditlogRule(models.Model):
         """Prepare the dictionary of values used to create a log line on a
         'write' operation.
         """
-        vals = {
-            'field_id': field['id'],
-            'log_id': log.id,
-            'old_value': old_values[log.res_id][field['name']],
-            'old_value_text': old_values[log.res_id][field['name']],
-            'new_value': new_values[log.res_id][field['name']],
-            'new_value_text': new_values[log.res_id][field['name']],
-        }
-        # for *2many fields, log the name_get
-        if field['relation'] and '2many' in field['ttype']:
-            # Filter IDs to prevent a 'name_get()' call on deleted resources
-            existing_ids = self.env[field['relation']]._search(
-                [('id', 'in', vals['old_value'])])
-            old_value_text = []
-            if existing_ids:
-                existing_values = self.env[field['relation']].browse(
-                    existing_ids).name_get()
-                old_value_text.extend(existing_values)
-            # Deleted resources will have a 'DELETED' text representation
-            deleted_ids = set(vals['old_value']) - set(existing_ids)
-            for deleted_id in deleted_ids:
-                old_value_text.append((deleted_id, 'DELETED'))
-            vals['old_value_text'] = old_value_text
-            new_value_text = self.env[field['relation']].browse(
-                vals['new_value']).name_get()
-            vals['new_value_text'] = new_value_text
+        if not old_values:
+            vals = {
+                'field_id': field['id'],
+                'log_id': log.id,
+                'old_value': False,
+                'old_value_text': False,
+                'new_value': new_values[log.res_id][field['name']],
+                'new_value_text': new_values[log.res_id][field['name']],
+            }
+        else:
+            vals = {
+                'field_id': field['id'],
+                'log_id': log.id,
+                'old_value': old_values[log.res_id][field['name']],
+                'old_value_text': old_values[log.res_id][field['name']],
+                'new_value': new_values[log.res_id][field['name']],
+                'new_value_text': new_values[log.res_id][field['name']],
+            }
+            # for *2many fields, log the name_get
+            if field['relation'] and '2many' in field['ttype']:
+                # Filter IDs to prevent a 'name_get()' call on deleted resources
+                existing_ids = self.env[field['relation']]._search(
+                    [('id', 'in', vals['old_value'])])
+                old_value_text = []
+                if existing_ids:
+                    existing_values = self.env[field['relation']].browse(
+                        existing_ids).name_get()
+                    old_value_text.extend(existing_values)
+                # Deleted resources will have a 'DELETED' text representation
+                deleted_ids = set(vals['old_value']) - set(existing_ids)
+                for deleted_id in deleted_ids:
+                    old_value_text.append((deleted_id, 'DELETED'))
+                vals['old_value_text'] = old_value_text
+                new_value_text = self.env[field['relation']].browse(
+                    vals['new_value']).name_get()
+                vals['new_value_text'] = new_value_text
         return vals
 
     def _create_log_line_on_create(
