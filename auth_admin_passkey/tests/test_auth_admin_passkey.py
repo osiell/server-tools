@@ -33,17 +33,15 @@ class TestAuthAdminPasskey(TransactionCase):
         super(TestAuthAdminPasskey, self).setUp()
 
         # Get Registries
-        self.imd_obj = self.registry('ir.model.data')
-        self.ru_obj = self.registry('res.users')
+        self.imd_obj = self.env['ir.model.data']
+        self.ru_obj = self.env['res.users']
 
         # Get Database name
         self.db = threading.current_thread().dbname
 
         # Get ids from xml_ids
-        self.admin_user_id = self.imd_obj.get_object_reference(
-            self.cr, self.uid, 'base', 'user_root')[1]
-        self.demo_user_id = self.imd_obj.get_object_reference(
-            self.cr, self.uid, 'base', 'user_demo')[1]
+        self.admin_user_id = self.env.ref('base.user_root').id
+        self.demo_user_id = self.env.ref('base.user_demo').id
 
     # Test Section
     def test_01_normal_login_admin_succeed(self):

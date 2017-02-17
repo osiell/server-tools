@@ -20,13 +20,25 @@
 #
 ##############################################################################
 
-from openerp.osv import fields
-from openerp.osv.orm import TransientModel
+from openerp import fields, models
 from openerp.tools.safe_eval import safe_eval
 
 
-class base_config_settings(TransientModel):
+class base_config_settings(models.TransientModel):
     _inherit = 'base.config.settings'
+
+    auth_admin_passkey_send_to_admin = fields.Boolean(
+        'Send email to admin user.',
+        help="""When the administrator use his password to login in """
+        """with a different account, Odoo will send an email """
+        """to the admin user.""",
+    )
+    auth_admin_passkey_send_to_user = fields.Boolean(
+        string='Send email to user.',
+        help="""When the administrator use his password to login in """
+        """with a different account, Odoo will send an email """
+        """to the account user.""",
+    )
 
     # Getter / Setter Section
     def get_default_auth_admin_passkey_send_to_admin(
@@ -58,19 +70,3 @@ class base_config_settings(TransientModel):
         icp.set_param(
             cr, uid, 'auth_admin_passkey.send_to_user',
             repr(config.auth_admin_passkey_send_to_user))
-
-    # Columns Section
-    _columns = {
-        'auth_admin_passkey_send_to_admin': fields.boolean(
-            'Send email to admin user.',
-            help="""When the administrator use his password to login in """
-            """with a different account, Odoo will send an email """
-            """to the admin user.""",
-        ),
-        'auth_admin_passkey_send_to_user': fields.boolean(
-            string='Send email to user.',
-            help="""When the administrator use his password to login in """
-            """with a different account, Odoo will send an email """
-            """to the account user.""",
-        ),
-    }
