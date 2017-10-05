@@ -12,7 +12,7 @@ class TestAuditlog(object):
         group = self.env['res.groups'].create({
             'name': 'testgroup1',
         })
-        group.read()
+        group.read([])
         self.assertTrue(auditlog_log.search([
             ('model_id', '=', self.groups_model_id),
             ('method', '=', 'read'),
