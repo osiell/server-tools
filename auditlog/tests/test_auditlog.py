@@ -6,6 +6,20 @@ from odoo.tests.common import TransactionCase
 
 class TestAuditlog(object):
 
+    def test_ReadLogCreation(self):
+        auditlog_log = self.env['auditlog.log']
+        group_create = self.env['res.groups'].with_context(
+            auditlog_disabled=True).create({
+                'name': 'testreadgroup'
+            })
+        group_read = self.env['res.groups'].browse(group_create.id)
+        group_read.read([])
+        auditlog_log.search([
+            ('model_id', '=', self.groups_model_id),
+            ('method', '=', 'read'),
+            ('res_id', '=', group_read.id),
+        ]).ensure_one()
+
     def test_LogCreation(self):
         """First test, caching some data."""
         auditlog_log = self.env['auditlog.log']
