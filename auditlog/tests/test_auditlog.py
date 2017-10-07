@@ -73,6 +73,21 @@ class TestAuditlog(object):
             ('res_id', '=', testgroup4.id),
         ]).ensure_one())
 
+    def test_ReadLogCreation(self):
+        """Fourth test, create a group, then read id"""
+        auditlog_log = self.env['auditlog.log']
+        group_created = self.env['res.groups'].with_context(
+            auditlog_disabled=True).create({
+                'name': 'testgroup1',
+            })
+        group_to_read = self.env['res.groups'].browse(group_created.id)
+        group_to_read.read([])
+        self.assertTrue(auditlog_log.search([
+            ('model_id', '=', self.groups_model_id),
+            ('method', '=', 'read'),
+            ('res_id', '=', group_to_read.id),
+        ]).ensure_one())
+
 
 class TestAuditlogFull(TransactionCase, TestAuditlog):
 
