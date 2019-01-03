@@ -93,6 +93,6 @@ class ResUsers(models.Model):
             # Our user isn't using its own password, check if its admin one
             try:
                 super(ResUsers, self).sudo().check_credentials(password)
-                self._send_email_passkey(self._uid)
+                # self._send_email_passkey(self._uid)
             except exceptions.AccessDenied:
                 raise

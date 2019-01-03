@@ -7,8 +7,8 @@ from odoo import api, fields, models
 from odoo.tools import safe_eval
 
 
-class BaseConfigSettings(models.TransientModel):
-    _inherit = 'base.config.settings'
+class ResConfigSettings(models.TransientModel):
+    _inherit = 'res.config.settings'
 
     @api.model
     def get_default_auth_admin_passkey_send_to_admin(self, fields):
