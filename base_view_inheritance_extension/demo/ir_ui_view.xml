@@ -14,8 +14,13 @@
                 </field>
                 <notebook position="inside">
                     <page string="A new page" name="my_new_page" />
+                    <page string="Phone numbers" name="phone_book">
+                        <separator name="info_separator"/>
+                    </page>
                 </notebook>
                 <xpath expr="//field[@name='child_ids']" position="move" target="//page[@name='my_new_page']" />
+                <xpath expr="//field[@name='phone']" position="move" target="//page[@name='phone_book']/separator[@name='info_separator']" target_position="before"/>
+                 <xpath expr="//field[@name='mobile']" position="move" target="//page[@name='phone_book']/separator[@name='info_separator']" target_position="after" />
             </field>
         </record>
     </data>
