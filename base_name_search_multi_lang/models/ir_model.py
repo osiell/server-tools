@@ -5,9 +5,13 @@ from odoo import api, fields, models, tools
 
 @tools.ormcache("model")
 def _get_model_name_search_multi_lang(self, model):
-    multi_lang = self.env["ir.model"].search_read(
-        [("model", "=", self._name)], ["name_search_multi_lang"]
-    )[0]["name_search_multi_lang"]
+    multi_lang = (
+        self.env["ir.model"]
+        .sudo()
+        .search_read([("model", "=", self._name)], ["name_search_multi_lang"])[0][
+            "name_search_multi_lang"
+        ]
+    )
     return multi_lang
 
 
@@ -60,6 +64,6 @@ class IrModel(models.Model):
         for model in self.sudo().search(self.ids or []):
             Model = self.env.get(model.model)
             if Model is not None:
-                Model._patch_method("name_search", make_name_search())
+                model._patch_method(Model, "name_search", make_name_search())
 
-        return super(IrModel, self)._register_hook()
+        return super()._register_hook()
